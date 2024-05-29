@@ -10,12 +10,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Properties\**" />
+    <EmbeddedResource Remove="Properties\**" />
+    <None Remove="Properties\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Npgsql" Version="8.0.3" />
     <PackageReference Include="ReportViewerCore.WinForms" Version="15.1.19" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Properties\" />
     <Folder Include="Scripts\" />
   </ItemGroup>
 
