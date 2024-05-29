@@ -1,26 +1,24 @@
 ﻿using Npgsql;
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
 using System.Configuration;
 using System.Data;
-using System.Drawing;
-using System.Globalization;
-using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Windows.Forms;
+using clientes_produtos_vendas.DAOs;
+using clientes_produtos_vendas.Models;
 
 namespace clientes_produtos_vendas.Forms
 {
     public partial class frmVendas : Form
     {
-        private string cn = System.Configuration.ConfigurationManager.ConnectionStrings["PostgreSqlConnection"].ConnectionString;
+        private readonly string cn = ConfigurationManager.ConnectionStrings["PostgreSqlConnection"].ConnectionString;
+        private readonly VendaDAO vendaDAO = new VendaDAO();
+        private readonly ClienteDAO clienteDAO = new ClienteDAO();
+        private readonly ProdutoDAO produtoDAO = new ProdutoDAO();
 
         public frmVendas()
         {
             InitializeComponent();
+            dgvItensVenda.CellContentClick += dgvItensVenda_CellContentClick;
         }
 
         private void frmVenda_Load(object sender, EventArgs e)
@@ -29,43 +27,43 @@ namespace clientes_produtos_vendas.Forms
             LoadProdutos();
         }
 
-        private void LoadClientes()
+        private void LoadClientes(string searchQuery = "")
         {
-            using (var conn = new NpgsqlConnection(cn))
+            try
             {
-                conn.Open();
-                var query = "SELECT clienteid, nome FROM clientes";
-                using (var cmd = new NpgsqlCommand(query, conn))
-                {
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        var dt = new DataTable();
-                        dt.Load(reader);
-                        cboClientes.DataSource = dt;
-                        cboClientes.DisplayMember = "nome";
-                        cboClientes.ValueMember = "clienteid";
-                    }
-                }
+                // Para o combo de clientes, queremos todos os clientes (sem paginação)
+                var dt = clienteDAO.BuscarClientes(searchQuery);
+                cboClientes.DataSource = dt;
+                cboClientes.DisplayMember = "nome";
+                cboClientes.ValueMember = "clienteid";
+            }
+            catch (NpgsqlException ex)
+            {
+                MessageBox.Show($"Erro de banco de dados: {ex.Message}", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Erro ao carregar clientes: {ex.Message}", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        private void LoadProdutos()
+        private void LoadProdutos(string searchQuery = "")
         {
-            using (var conn = new NpgsqlConnection(cn))
+            try
             {
-                conn.Open();
-                var query = "SELECT produtoid, nome, estoque FROM produtos";
-                using (var cmd = new NpgsqlCommand(query, conn))
-                {
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        var dt = new DataTable();
-                        dt.Load(reader);
-                        cboProdutos.DataSource = dt;
-                        cboProdutos.DisplayMember = "nome";
-                        cboProdutos.ValueMember = "produtoid";
-                    }
-                }
+                // Para o combo de clientes, queremos todos os clientes (sem paginação)
+                var dt = produtoDAO.BuscarProdutos(searchQuery);
+                cboProdutos.DataSource = dt;
+                cboProdutos.DisplayMember = "descricao";
+                cboProdutos.ValueMember = "produtoid";
+            }
+            catch (NpgsqlException ex)
+            {
+                MessageBox.Show($"Erro de banco de dados: {ex.Message}", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Erro ao carregar produtos: {ex.Message}", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -78,6 +76,12 @@ namespace clientes_produtos_vendas.Forms
                 dgvItensVenda.Columns.Add("ProdutoId", "ID");
                 dgvItensVenda.Columns.Add("NomeProduto", "Nome");
                 dgvItensVenda.Columns.Add("Quantidade", "Quantidade");
+                dgvItensVenda.Columns.Add(new DataGridViewButtonColumn
+                {
+                    Name = "Excluir",
+                    Text = "Excluir",
+                    UseColumnTextForButtonValue = true,
+                });
             }
 
             if (int.TryParse(txtQuantidade.Text, out int quantidade) && quantidade > 0)
@@ -103,67 +107,80 @@ namespace clientes_produtos_vendas.Forms
             }
         }
 
+        private void dgvItensVenda_CellContentClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.ColumnIndex == dgvItensVenda.Columns["Excluir"].Index && e.RowIndex >= 0)
+            {
+                dgvItensVenda.Rows.RemoveAt(e.RowIndex);
+            }
+        }
+
         private void btnSalvarVenda_Click(object sender, EventArgs e)
         {
+            // Verifica se um cliente foi selecionado
+            if (cboClientes.SelectedValue == null)
+            {
+                MessageBox.Show("Selecione um cliente para continuar.", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            // Verifica se há itens na venda
+            if (dgvItensVenda.Rows.Count == 0 || dgvItensVenda.Rows.Cast<DataGridViewRow>().All(row => row.IsNewRow))
+            {
+                MessageBox.Show("Adicione pelo menos um produto à venda.", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
             int clienteId = (int)cboClientes.SelectedValue;
             DateTime dataVenda = DateTime.Now;
 
-            using (var conn = new NpgsqlConnection(cn))
+            try
             {
-                conn.Open();
-                using (var tran = conn.BeginTransaction())
+                List<ItemVenda> itensVenda = new List<ItemVenda>();
+
+                // Percorre os itens da DataGridView para criar a lista de itens de venda
+                foreach (DataGridViewRow row in dgvItensVenda.Rows)
                 {
-                    try
-                    {
-                        // Inserir a venda
-                        var queryVenda = "INSERT INTO vendas (clienteid, datavenda) VALUES (@clienteid, @datavenda) RETURNING vendaid";
-                        int vendaId;
-                        using (var cmdVenda = new NpgsqlCommand(queryVenda, conn, tran))
-                        {
-                            cmdVenda.Parameters.AddWithValue("clienteid", clienteId);
-                            cmdVenda.Parameters.AddWithValue("datavenda", dataVenda);
-                            vendaId = (int)cmdVenda.ExecuteScalar();
-                        }
+                    if (row.IsNewRow) continue;
 
-                        // Inserir os itens da venda e atualizar o estoque
-                        foreach (DataGridViewRow row in dgvItensVenda.Rows)
-                        {
-                            if (row.IsNewRow) continue;
+                    int produtoId = (int)row.Cells["ProdutoId"].Value;
+                    int quantidade = (int)row.Cells["Quantidade"].Value;
 
-                            int produtoId = (int)row.Cells[0].Value;
-                            int quantidade = (int)row.Cells[2].Value;
-
-                            // Inserir item da venda
-                            var queryItem = "INSERT INTO itensvenda (vendaid, produtoid, quantidade) VALUES (@vendaid, @produtoid, @quantidade)";
-                            using (var cmdItem = new NpgsqlCommand(queryItem, conn, tran))
-                            {
-                                cmdItem.Parameters.AddWithValue("vendaid", vendaId);
-                                cmdItem.Parameters.AddWithValue("produtoid", produtoId);
-                                cmdItem.Parameters.AddWithValue("quantidade", quantidade);
-                                cmdItem.ExecuteNonQuery();
-                            }
-
-                            // Atualizar estoque
-                            var queryUpdateEstoque = "UPDATE produtos SET estoque = estoque - @quantidade WHERE produtoid = @produtoid";
-                            using (var cmdUpdateEstoque = new NpgsqlCommand(queryUpdateEstoque, conn, tran))
-                            {
-                                cmdUpdateEstoque.Parameters.AddWithValue("quantidade", quantidade);
-                                cmdUpdateEstoque.Parameters.AddWithValue("produtoid", produtoId);
-                                cmdUpdateEstoque.ExecuteNonQuery();
-                            }
-                        }
-
-                        tran.Commit();
-                        MessageBox.Show("Venda registrada com sucesso.");
-                        ClearFields();
-                        LoadProdutos(); // Recarregar produtos para atualizar o estoque no comboBox
-                    }
-                    catch (Exception ex)
-                    {
-                        tran.Rollback();
-                        MessageBox.Show("Erro ao registrar a venda: " + ex.Message);
-                    }
+                    itensVenda.Add(new ItemVenda { ProdutoID = produtoId, Quantidade = quantidade });
                 }
+
+                // Verifica se há itens na venda
+                if (itensVenda.Count == 0)
+                {
+                    MessageBox.Show("Adicione pelo menos um produto à venda.", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                VendaDAO vendaDAO = new VendaDAO();
+
+                // Criar uma instância de Venda
+                Venda venda = new Venda
+                {
+                    ClienteID = clienteId,
+                    DataVenda = dataVenda
+                };
+
+                // Registrar a venda, os itens da venda e atualizar o estoque
+                vendaDAO.RegistrarVenda(venda, itensVenda);
+
+                MessageBox.Show("Venda registrada com sucesso.", "Sucesso", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                // Limpar campos e recarregar produtos
+                ClearFields();
+                LoadProdutos();
+            }
+            catch (NpgsqlException ex)
+            {
+                MessageBox.Show($"Erro de banco de dados: {ex.Message}", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Erro ao registrar a venda: {ex.Message}", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

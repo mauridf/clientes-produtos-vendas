@@ -1,25 +1,20 @@
 ﻿using Npgsql;
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
 using System.Configuration;
 using System.Data;
 using System.Drawing;
 using System.Globalization;
-using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Windows.Forms;
+using clientes_produtos_vendas.DAOs;
+using clientes_produtos_vendas.Models;
 
 namespace clientes_produtos_vendas.Forms
 {
     public partial class frmProduto : Form
     {
         private int currentPage = 1;
-        private int pageSize = 10;
-
-        private string cn = System.Configuration.ConfigurationManager.ConnectionStrings["PostgreSqlConnection"].ConnectionString;
+        private int pageSize = 5;
+        private readonly ProdutoDAO produtoDAO = new ProdutoDAO();
 
         public frmProduto()
         {
@@ -29,55 +24,17 @@ namespace clientes_produtos_vendas.Forms
 
         private void LoadProdutos(string searchQuery = "")
         {
-            using (var conn = new NpgsqlConnection(cn))
+            try
             {
-                conn.Open();
-                string query = $"SELECT * FROM produtos WHERE nome ILIKE @searchQuery ORDER BY produtoid LIMIT {pageSize} OFFSET {(currentPage - 1) * pageSize}";
-                using (var cmd = new NpgsqlCommand(query, conn))
-                {
-                    cmd.Parameters.AddWithValue("searchQuery", $"%{searchQuery}%");
-                    var dt = new DataTable();
-                    dt.Load(cmd.ExecuteReader());
-                    dgvProdutos.DataSource = dt;
-                }
+                dgvProdutos.DataSource = produtoDAO.BuscarProdutos(searchQuery, currentPage, pageSize);
             }
-        }
-
-        private void txtPreco_Enter(object sender, EventArgs e)
-        {
-            // Remove a formatação ao entrar no campo
-            if (decimal.TryParse(txtPreco.Text, NumberStyles.Currency, CultureInfo.CurrentCulture, out decimal value))
+            catch (NpgsqlException ex)
             {
-                txtPreco.Text = value.ToString("0.00");
+                MessageBox.Show($"Erro de banco de dados: {ex.Message}", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-        }
-
-        private void txtPreco_KeyPress(object sender, KeyPressEventArgs e)
-        {
-            // Permitir apenas números, vírgulas e controle de backspace
-            if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar) && e.KeyChar != ',')
+            catch (Exception ex)
             {
-                e.Handled = true;
-            }
-
-            // Apenas um único caractere de vírgula é permitido
-            var textBox = sender as TextBox;
-            if (e.KeyChar == ',' && textBox != null && textBox.Text.IndexOf(',') > -1)
-            {
-                e.Handled = true;
-            }
-        }
-
-        private void txtPreco_Leave(object sender, EventArgs e)
-        {
-            // Formatar como moeda ao sair do campo
-            if (decimal.TryParse(txtPreco.Text, out decimal value))
-            {
-                txtPreco.Text = string.Format(CultureInfo.CurrentCulture, "{0:C}", value);
-            }
-            else
-            {
-                txtPreco.Text = string.Empty;
+                MessageBox.Show($"Erro ao carregar produtos: {ex.Message}", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -89,17 +46,19 @@ namespace clientes_produtos_vendas.Forms
                 if (dgvProdutos.Columns[e.ColumnIndex] is DataGridViewButtonColumn && dgvProdutos.Columns[e.ColumnIndex].Name == "btnExcluir")
                 {
                     var id = dgvProdutos.Rows[e.RowIndex].Cells["produtoid"].Value.ToString();
-                    using (var conn = new NpgsqlConnection(cn))
+                    try
                     {
-                        conn.Open();
-                        string query = "DELETE FROM produtos WHERE produtoid=@produtoid";
-                        using (var cmd = new NpgsqlCommand(query, conn))
-                        {
-                            cmd.Parameters.AddWithValue("produtoid", int.Parse(id));
-                            cmd.ExecuteNonQuery();
-                        }
+                        produtoDAO.ExcluirProduto(int.Parse(id));
+                        LoadProdutos(txtPesquisar.Text);
                     }
-                    LoadProdutos(txtPesquisar.Text);
+                    catch (NpgsqlException ex)
+                    {
+                        MessageBox.Show($"Erro de banco de dados: {ex.Message}", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Erro ao excluir produto: {ex.Message}", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
                 }
                 // Seleção para edição
                 else
@@ -126,39 +85,45 @@ namespace clientes_produtos_vendas.Forms
         {
             if (ValidateFields())
             {
-                using (var conn = new NpgsqlConnection(cn))
+                try
                 {
-                    conn.Open();
-                    string query = txtId.Text == "" ?
-                        "INSERT INTO produtos (nome, descricao, preco, estoque) VALUES (@nome, @descricao, @preco, @estoque)" :
-                        "UPDATE produtos SET nome=@nome, descricao=@descricao, preco=@preco, estoque=@estoque WHERE produtoid=@produtoid";
-                    using (var cmd = new NpgsqlCommand(query, conn))
+                    Produto produto = new Produto();
+                    produto.ProdutoID = string.IsNullOrEmpty(txtId.Text) ? 0 : int.Parse(txtId.Text);
+                    produto.Nome = txtProduto.Text;
+                    produto.Descricao = txtDescricao.Text;
+
+                    if (decimal.TryParse(txtPreco.Text, NumberStyles.Currency, CultureInfo.CurrentCulture, out decimal preco))
                     {
-                        if (txtId.Text != "")
-                        {
-                            cmd.Parameters.AddWithValue("produtoid", int.Parse(txtId.Text));
-                        }
-                        cmd.Parameters.AddWithValue("nome", txtProduto.Text);
-                        cmd.Parameters.AddWithValue("descricao", txtDescricao.Text);
-
-                        // Converter o valor do texto do preço para decimal
-                        if (decimal.TryParse(txtPreco.Text, NumberStyles.Currency, CultureInfo.CurrentCulture, out decimal preco))
-                        {
-                            cmd.Parameters.AddWithValue("preco", preco);
-                        }
-                        else
-                        {
-                            MessageBox.Show("Preço inválido");
-                            return;
-                        }
-
-                        cmd.Parameters.AddWithValue("estoque", int.Parse(txtEstoque.Text));
-
-                        cmd.ExecuteNonQuery();
+                        produto.Preco = preco;
                     }
+                    else
+                    {
+                        MessageBox.Show("Preço inválido");
+                        return;
+                    }
+
+                    produto.Estoque = int.Parse(txtEstoque.Text);
+
+                    if (produto.ProdutoID == 0)
+                    {
+                        produtoDAO.InserirProduto(produto);
+                    }
+                    else
+                    {
+                        produtoDAO.AlterarProduto(produto);
+                    }
+
+                    LoadProdutos();
+                    ClearFields();
                 }
-                LoadProdutos();
-                ClearFields();
+                catch (NpgsqlException ex)
+                {
+                    MessageBox.Show($"Erro de banco de dados: {ex.Message}", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Erro ao salvar produto: {ex.Message}", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             }
         }
 
@@ -211,6 +176,49 @@ namespace clientes_produtos_vendas.Forms
         private void txtPesquisar_TextChanged(object sender, EventArgs e)
         {
             LoadProdutos(txtPesquisar.Text);
+        }
+
+        private void txtPreco_Enter(object sender, EventArgs e)
+        {
+            // Remove a formatação ao entrar no campo
+            if (decimal.TryParse(txtPreco.Text, NumberStyles.Currency, CultureInfo.CurrentCulture, out decimal value))
+            {
+                txtPreco.Text = value.ToString("0.00");
+            }
+        }
+
+        private void txtPreco_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            // Permitir apenas números, vírgulas e controle de backspace
+            if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar) && e.KeyChar != ',')
+            {
+                e.Handled = true;
+            }
+
+            // Apenas um único caractere de vírgula é permitido
+            var textBox = sender as TextBox;
+            if (e.KeyChar == ',' && textBox != null && textBox.Text.IndexOf(',') > -1)
+            {
+                e.Handled = true;
+            }
+        }
+
+        private void txtPreco_Leave(object sender, EventArgs e)
+        {
+            // Formatar como moeda ao sair do campo
+            if (decimal.TryParse(txtPreco.Text, out decimal value))
+            {
+                txtPreco.Text = string.Format(CultureInfo.CurrentCulture, "{0:C}", value);
+            }
+            else
+            {
+                txtPreco.Text = string.Empty;
+            }
+        }
+
+        private void btnCancelar_Click(object sender, EventArgs e)
+        {
+            ClearFields();
         }
     }
 }

@@ -42,11 +42,12 @@
             btnSalvar = new Button();
             btnSair = new Button();
             dgvClientes = new DataGridView();
+            btnExcluir = new DataGridViewButtonColumn();
             txtPesquisar = new TextBox();
             btnAnterior = new Button();
             btnProximo = new Button();
             lblPaginaAtual = new Label();
-            btnExcluir = new DataGridViewButtonColumn();
+            btnCancelar = new Button();
             ((System.ComponentModel.ISupportInitialize)dgvClientes).BeginInit();
             SuspendLayout();
             // 
@@ -167,7 +168,19 @@
             dgvClientes.Size = new Size(939, 228);
             dgvClientes.TabIndex = 7;
             dgvClientes.CellClick += dgvClientes_CellClick;
-            this.dgvClientes.CellFormatting += new System.Windows.Forms.DataGridViewCellFormattingEventHandler(this.dgvClientes_CellFormatting);
+            dgvClientes.CellFormatting += dgvClientes_CellFormatting;
+            // 
+            // btnExcluir
+            // 
+            dataGridViewCellStyle1.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            dataGridViewCellStyle1.ForeColor = Color.Red;
+            btnExcluir.DefaultCellStyle = dataGridViewCellStyle1;
+            btnExcluir.HeaderText = "Excluir";
+            btnExcluir.MinimumWidth = 6;
+            btnExcluir.Name = "btnExcluir";
+            btnExcluir.Text = "Excluir";
+            btnExcluir.UseColumnTextForButtonValue = true;
+            btnExcluir.Width = 125;
             // 
             // txtPesquisar
             // 
@@ -206,23 +219,23 @@
             lblPaginaAtual.TabIndex = 16;
             lblPaginaAtual.Text = "Página: 1";
             // 
-            // btnExcluir
+            // btnCancelar
             // 
-            dataGridViewCellStyle1.Alignment = DataGridViewContentAlignment.MiddleCenter;
-            dataGridViewCellStyle1.ForeColor = Color.Red;
-            btnExcluir.DefaultCellStyle = dataGridViewCellStyle1;
-            btnExcluir.HeaderText = "Excluir";
-            btnExcluir.MinimumWidth = 6;
-            btnExcluir.Name = "btnExcluir";
-            btnExcluir.Text = "Excluir";
-            btnExcluir.UseColumnTextForButtonValue = true;
-            btnExcluir.Width = 125;
+            btnCancelar.BackColor = Color.LightSeaGreen;
+            btnCancelar.Location = new Point(262, 191);
+            btnCancelar.Name = "btnCancelar";
+            btnCancelar.Size = new Size(94, 29);
+            btnCancelar.TabIndex = 17;
+            btnCancelar.Text = "&Cancelar";
+            btnCancelar.UseVisualStyleBackColor = false;
+            btnCancelar.Click += btnCancelar_Click;
             // 
             // frmClientes
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(966, 549);
+            Controls.Add(btnCancelar);
             Controls.Add(lblPaginaAtual);
             Controls.Add(btnProximo);
             Controls.Add(btnAnterior);
@@ -267,5 +280,6 @@
         private Button btnProximo;
         private Label lblPaginaAtual;
         private DataGridViewButtonColumn btnExcluir;
+        private Button btnCancelar;
     }
 }

@@ -1,24 +1,21 @@
-﻿using Npgsql;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
+﻿using System;
 using System.Configuration;
 using System.Data;
 using System.Drawing;
-using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Windows.Forms;
+using clientes_produtos_vendas.DAOs;
+using clientes_produtos_vendas.Models;
+using Npgsql;
 
 namespace clientes_produtos_vendas.Forms
 {
     public partial class frmClientes : Form
     {
         private int currentPage = 1;
-        private int pageSize = 10;
+        private int pageSize = 5;
 
-        private string cn = System.Configuration.ConfigurationManager.ConnectionStrings["PostgreSqlConnection"].ConnectionString;
+        private readonly ClienteDAO clienteDAO = new ClienteDAO();
 
         public frmClientes()
         {
@@ -28,17 +25,17 @@ namespace clientes_produtos_vendas.Forms
 
         private void LoadClientes(string searchQuery = "")
         {
-            using (var conn = new NpgsqlConnection(cn))
+            try
             {
-                conn.Open();
-                string query = $"SELECT * FROM clientes WHERE nome ILIKE @searchQuery ORDER BY clienteid LIMIT {pageSize} OFFSET {(currentPage - 1) * pageSize}";
-                using (var cmd = new NpgsqlCommand(query, conn))
-                {
-                    cmd.Parameters.AddWithValue("searchQuery", $"%{searchQuery}%");
-                    var dt = new DataTable();
-                    dt.Load(cmd.ExecuteReader());
-                    dgvClientes.DataSource = dt;
-                }
+                dgvClientes.DataSource = clienteDAO.BuscarClientes(searchQuery, currentPage, pageSize);
+            }
+            catch (NpgsqlException ex)
+            {
+                MessageBox.Show($"Erro de banco de dados: {ex.Message}", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Erro ao carregar clientes: {ex.Message}", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -46,28 +43,37 @@ namespace clientes_produtos_vendas.Forms
         {
             if (ValidateFields())
             {
-                using (var conn = new NpgsqlConnection(cn))
+                try
                 {
-                    conn.Open();
-                    string query = txtClienteID.Text == "" ?
-                        "INSERT INTO clientes (nome, endereco, telefone, email) VALUES (@nome, @endereco, @telefone, @email)" :
-                        "UPDATE clientes SET nome=@nome, endereco=@endereco, telefone=@telefone, email=@email WHERE clienteid=@clienteid";
-                    using (var cmd = new NpgsqlCommand(query, conn))
+                    Cliente cliente = new Cliente
                     {
-                        if (txtClienteID.Text != "")
-                        {
-                            cmd.Parameters.AddWithValue("clienteid", int.Parse(txtClienteID.Text));
-                        }
-                        cmd.Parameters.AddWithValue("nome", txtNomeCliente.Text);
-                        cmd.Parameters.AddWithValue("endereco", txtEnderecoCliente.Text);
-                        cmd.Parameters.AddWithValue("telefone", txtTelefoneCliente.Text);
-                        cmd.Parameters.AddWithValue("email", txtEmailCliente.Text);
+                        ClienteID = string.IsNullOrEmpty(txtClienteID.Text) ? 0 : int.Parse(txtClienteID.Text),
+                        Nome = txtNomeCliente.Text,
+                        Endereco = txtEnderecoCliente.Text,
+                        Telefone = txtTelefoneCliente.Text,
+                        Email = txtEmailCliente.Text
+                    };
 
-                        cmd.ExecuteNonQuery();
+                    if (cliente.ClienteID == 0)
+                    {
+                        clienteDAO.InserirCliente(cliente);
                     }
+                    else
+                    {
+                        clienteDAO.AlterarCliente(cliente);
+                    }
+
+                    LoadClientes();
+                    ClearFields();
                 }
-                LoadClientes();
-                ClearFields();
+                catch (NpgsqlException ex)
+                {
+                    MessageBox.Show($"Erro de banco de dados: {ex.Message}", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Erro ao salvar cliente: {ex.Message}", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             }
         }
 
@@ -75,17 +81,17 @@ namespace clientes_produtos_vendas.Forms
         {
             if (string.IsNullOrWhiteSpace(txtNomeCliente.Text))
             {
-                MessageBox.Show("O Nome é obrigatório");
+                MessageBox.Show("O Nome é obrigatório", "Erro de Validação", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
             if (!Regex.IsMatch(txtTelefoneCliente.Text, @"^\(\d{2}\) \d{5}-\d{4}$"))
             {
-                MessageBox.Show("Telefone inválido. Use o formato (00) 00000-0000");
+                MessageBox.Show("Telefone inválido. Use o formato (00) 00000-0000", "Erro de Validação", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
             if (!Regex.IsMatch(txtEmailCliente.Text, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
             {
-                MessageBox.Show("E-mail inválido.");
+                MessageBox.Show("E-mail inválido.", "Erro de Validação", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
             return true;
@@ -140,17 +146,19 @@ namespace clientes_produtos_vendas.Forms
                 if (dgvClientes.Columns[e.ColumnIndex] is DataGridViewButtonColumn && dgvClientes.Columns[e.ColumnIndex].Name == "btnExcluir")
                 {
                     var id = dgvClientes.Rows[e.RowIndex].Cells["clienteid"].Value.ToString();
-                    using (var conn = new NpgsqlConnection(cn))
+                    try
                     {
-                        conn.Open();
-                        string query = "DELETE FROM clientes WHERE clienteid=@clienteid";
-                        using (var cmd = new NpgsqlCommand(query, conn))
-                        {
-                            cmd.Parameters.AddWithValue("clienteid", int.Parse(id));
-                            cmd.ExecuteNonQuery();
-                        }
+                        clienteDAO.ExcluirCliente(int.Parse(id));
+                        LoadClientes(txtPesquisar.Text);
                     }
-                    LoadClientes(txtPesquisar.Text);
+                    catch (NpgsqlException ex)
+                    {
+                        MessageBox.Show($"Erro de banco de dados: {ex.Message}", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Erro ao excluir cliente: {ex.Message}", "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
                 }
                 // Seleção para edição
                 else
@@ -171,6 +179,11 @@ namespace clientes_produtos_vendas.Forms
                 e.CellStyle.BackColor = Color.Red;
                 e.CellStyle.ForeColor = Color.White;
             }
+        }
+
+        private void btnCancelar_Click(object sender, EventArgs e)
+        {
+            ClearFields();
         }
     }
 }

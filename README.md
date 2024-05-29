@@ -8,7 +8,7 @@ O sistema permite cadastrar, editar e remover clientes e produtos, realizar vend
     • Relatórios: Geração de relatórios de vendas, clientes e estoque.
 ## Tecnologias Utilizadas:
     • C#
-    • .NET 6.0
+    • .NET 7.0
     • Windows Forms
     • PostgreSQL
     • Npgsql: Biblioteca ADO.NET para PostgreSQL
@@ -27,8 +27,6 @@ O sistema permite cadastrar, editar e remover clientes e produtos, realizar vend
         ◦ Use o seguinte script SQL para criar as tabelas necessárias:
           
           CREATE DATABASE controle_vendas;
-          
-          \c controle_vendas;
           
           CREATE TABLE clientes (
               id SERIAL PRIMARY KEY,

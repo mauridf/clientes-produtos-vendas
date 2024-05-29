@@ -30,7 +30,7 @@ namespace clientes_produtos_vendas.Forms
         /// </summary>
         private void InitializeComponent()
         {
-            DataGridViewCellStyle dataGridViewCellStyle2 = new DataGridViewCellStyle();
+            DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
             label1 = new Label();
             label2 = new Label();
             label3 = new Label();
@@ -49,6 +49,7 @@ namespace clientes_produtos_vendas.Forms
             btnAnterior = new Button();
             btnProximo = new Button();
             lblPaginaAtual = new Label();
+            btnCancelar = new Button();
             ((System.ComponentModel.ISupportInitialize)dgvProdutos).BeginInit();
             SuspendLayout();
             // 
@@ -174,9 +175,9 @@ namespace clientes_produtos_vendas.Forms
             // 
             // btnExcluir
             // 
-            dataGridViewCellStyle2.Alignment = DataGridViewContentAlignment.MiddleCenter;
-            dataGridViewCellStyle2.ForeColor = Color.Red;
-            btnExcluir.DefaultCellStyle = dataGridViewCellStyle2;
+            dataGridViewCellStyle1.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            dataGridViewCellStyle1.ForeColor = Color.Red;
+            btnExcluir.DefaultCellStyle = dataGridViewCellStyle1;
             btnExcluir.HeaderText = "Excluir";
             btnExcluir.MinimumWidth = 6;
             btnExcluir.Name = "btnExcluir";
@@ -221,11 +222,23 @@ namespace clientes_produtos_vendas.Forms
             lblPaginaAtual.TabIndex = 16;
             lblPaginaAtual.Text = "Página: 1";
             // 
+            // btnCancelar
+            // 
+            btnCancelar.BackColor = Color.LightSeaGreen;
+            btnCancelar.Location = new Point(247, 184);
+            btnCancelar.Name = "btnCancelar";
+            btnCancelar.Size = new Size(94, 29);
+            btnCancelar.TabIndex = 17;
+            btnCancelar.Text = "&Cancelar";
+            btnCancelar.UseVisualStyleBackColor = false;
+            btnCancelar.Click += btnCancelar_Click;
+            // 
             // frmProduto
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(922, 504);
+            Controls.Add(btnCancelar);
             Controls.Add(lblPaginaAtual);
             Controls.Add(btnProximo);
             Controls.Add(btnAnterior);
@@ -270,5 +283,6 @@ namespace clientes_produtos_vendas.Forms
         private Button btnProximo;
         private Label lblPaginaAtual;
         private DataGridViewButtonColumn btnExcluir;
+        private Button btnCancelar;
     }
 }
